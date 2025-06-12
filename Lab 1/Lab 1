@@ -1,0 +1,67 @@
+import random
+import numpy as np
+from deap import base, creator, tools, algorithms
+
+# Distance matrix for cities
+distance_matrix = np.array([
+    [0, 10, 15, 20, 25, 30],
+    [10, 0, 35, 25, 17, 28],
+    [15, 35, 0, 30, 20, 22],
+    [20, 25, 30, 0, 18, 26],
+    [25, 17, 20, 18, 0, 16],
+    [30, 28, 22, 26, 16, 0]
+])
+
+NUM_CITIES = len(distance_matrix)
+POP_SIZE = 100
+GENS = 200
+MUT_RATE = 0.2
+TOUR_SIZE = 3
+
+# Fitness function to calculate total distance
+def evaluate(individual):
+    distance = sum(distance_matrix[individual[i], individual[i+1]] for i in range(NUM_CITIES - 1))
+    distance += distance_matrix[individual[-1], individual[0]]  # Return to start
+    return (distance,)
+
+# Genetic algorithm setup
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+creator.create("Individual", list, fitness=creator.FitnessMin)
+
+toolbox = base.Toolbox()
+toolbox.register("indices", random.sample, range(NUM_CITIES), NUM_CITIES)
+toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.indices)
+toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+toolbox.register("mate", tools.cxOrdered)
+toolbox.register("mutate", tools.mutShuffleIndexes, indpb=0.2)
+toolbox.register("select", tools.selTournament, tournsize=TOUR_SIZE)
+toolbox.register("evaluate", evaluate)
+
+def main():
+    pop = toolbox.population(n=POP_SIZE)
+    hof = tools.HallOfFame(1)
+    stats = tools.Statistics(lambda ind: ind.fitness.values)
+    stats.register("min", np.min)
+    stats.register("avg", np.mean)
+    
+    algorithms.eaSimple(pop, toolbox, cxpb=0.7, mutpb=MUT_RATE, ngen=GENS, 
+                        stats=stats, halloffame=hof, verbose=True)
+    
+    best_route = hof[0]
+    best_distance = evaluate(best_route)[0]
+    print("Best Route:", best_route)
+    print("Best Distance:", best_distance)
+    
+    # Experimenting with different parameters
+    print("\nExperimenting with different mutation rates:")
+    for rate in [0.1, 0.2, 0.3]:
+        print(f"Running with mutation rate: {rate}")
+        toolbox.unregister("mutate")
+        toolbox.register("mutate", tools.mutShuffleIndexes, indpb=rate)
+        pop = toolbox.population(n=POP_SIZE)
+        algorithms.eaSimple(pop, toolbox, cxpb=0.7, mutpb=rate, ngen=GENS, 
+                            stats=stats, halloffame=hof, verbose=False)
+        print(f"Best distance with mutation rate {rate}: {evaluate(hof[0])[0]}")
+    
+if __name__ == "__main__":
+    main()
